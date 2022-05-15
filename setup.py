@@ -10,7 +10,6 @@ $ net use U: \\files.ad.ife.no\MatPro_files\Florian\Repositoties
 $ cd ./GridInterpolator
 $ python setup.py build_ext --inplace
 
-$ C:
 $ cd C:/Users/florianma/Anaconda3
 $ python //files.ad.ife.no/MatPro_files/Florian/Repositoties/GridInterpolator/setup.py build_ext --inplace
 generates c:/users/florianma/anaconda3/gram_matrix.cp38-win_amd64.pyd
@@ -23,16 +22,22 @@ generates //files.ad.ife.no/MatPro_files/ \
 """
 # import gmsh
 from setuptools import setup
-from Cython.Build import cythonize
-from Cython.Distutils import build_ext
 from setuptools.command.sdist import sdist as _sdist
 from setuptools.extension import Extension
-from setuptools import setup, find_packages
+from setuptools import find_packages
+from Cython.Build import cythonize
+from Cython.Distutils import build_ext
 import sys
 import os
+import numpy as np
 print(os.getcwd())  # 'C:\\Users\\florianma\\Anaconda3
 print('Compiling Cython modules from .pyx sources.')
-sources = ["src/gridinterpolator/_grid_interpolator.pyx", "src/btwxt.cpp"]
+sources = ["src/gridinterpolator/_grid_interpolator.pyx",
+           "src/btwxt.cpp",
+           "src/error.cpp",
+           "src/griddeddata.cpp",
+           "src/gridpoint.cpp"
+           ]
 
 
 class sdist(_sdist):
@@ -48,20 +53,14 @@ class sdist(_sdist):
 
 cmdclass = {'sdist': sdist, 'build_ext': build_ext}
 
-ext = Extension("pyclipper._pyclipper",
+ext = Extension("gridinterpolator._grid_interpolator",
                 sources=sources,
                 language="c++",
-                include_dirs=["src"],
-                # define extra macro definitions that are used by clipper
-                # Available definitions that can be used with pyclipper:
-                # use_lines, use_int32
-                # See src/clipper.hpp
-                # define_macros=[('use_lines', 1)]
+                include_dirs=["src", np.get_include()],
                 )
 # FIXME: cant find README.md
 needs_pytest = {'pytest', 'test'}.intersection(sys.argv)
 pytest_runner = ['pytest_runner'] if needs_pytest else []
-# unwanted_prefix = "//files.ad.ife.no/MatPro_files/Florian/Repositoties/GridInterpolator/"
 with open("README.md", "r", encoding='utf-8') as readme:
     long_description = readme.read()
 
@@ -71,7 +70,7 @@ setup(
     description='Cython wrapper for the C++ library btwxt',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author='Big Ladder Software, Florian Arbes',
+    author='Florian Arbes',
     author_email='florian.arbes@t-online.de',
     maintainer="Florian Arbes",
     maintainer_email="florian.arbes@t-online.de",
