@@ -49,6 +49,7 @@ from libcpp.vector cimport vector
 from libcpp.utility cimport pair
 ctypedef vector[double] vd
 ctypedef pair[vd, vd] pvdvd
+ctypedef np.float64_t DTYPE_t
 
 cdef extern from "btwxt.h" namespace "Btwxt":
 
@@ -105,30 +106,41 @@ cdef extern from "btwxt.h" namespace "Btwxt":
     cdef cppclass RegularGridInterpolator:
         RegularGridInterpolator()
         RegularGridInterpolator(vector[vector[double]]& grid, vector[vector[double]]& values)
+        size_t get_ndims()
+        pvdvd get_axis_limits(int dim)
         void set_new_target(vector[double]& target)
+        vector[double] get_current_target()
+        vector[double] get_values_at_target()
+        vector[double] get_values_at_target(vector[double]& target)
+        vector[double] get_hypercube()
+        # set_axis_interp_method
+        # set_axis_extrap_method
+        # set_axis_extrap_limits
 
     
-cdef class PyGriddedData:
-    """Wraps the GriddedData class.
-    """
-    cdef GriddedData *thisptr  # hold a C++ instance which we're wrapping
-    def __cinit__(self):
-        """ Creates an instance of the GriddedData class.
-        InitOptions from the GriddedData class are substituted
-        with separate properties.
-        """
-        # log_action("Creating a GriddedData instance")
-        self.thisptr = new GriddedData()
-
-    def __dealloc__(self):
-        # log_action("Deleting the GriddedData instance")
-        del self.thisptr
+# cdef class PyGriddedData:
+#     """Wraps the GriddedData class.
+#     """
+#     # cdef GriddedData *thisptr  # hold a C++ instance which we're wrapping
+#     def __cinit__(self):
+#         """ Creates an instance of the GriddedData class.
+#         InitOptions from the GriddedData class are substituted
+#         with separate properties.
+#         """
+#         # log_action("Creating a GriddedData instance")
+#         self.thisptr = new GriddedData()
+# 
+    # def __dealloc__(self):
+    #     # log_action("Deleting the GriddedData instance")
+    #     del self.thisptr
 
 
 cdef class PyRegularGridInterpolator:
     """Wraps the RegularGridInterpolator class.
     """
-    cdef RegularGridInterpolator *thisptr  # hold a C++ instance which we're wrapping
+    # cdef RegularGridInterpolator *c_RGI  # hold a pointer to a C++ instance which we're wrapping
+    # annotate does not like that
+    cdef RegularGridInterpolator c_RGI  # hold a C++ instance which we're wrapping
     def __cinit__(self, list grid, np.ndarray[np.float64_t, ndim=2] values):
         """ Creates an instance of the RegularGridInterpolator class.
         InitOptions from the RegularGridInterpolator class are substituted
@@ -136,24 +148,110 @@ cdef class PyRegularGridInterpolator:
         """
         # log_action("Creating a RegularGridInterpolator instance")
         cdef Py_ssize_t i, j, k
-        
         cdef int n_dim = len(grid)
         cdef int n_tables = len(values)
+        cdef vector[double] c_tmp
         cdef vector[vector[double]] c_grid
         cdef vector[vector[double]] c_values
+        # TODO: check dimensions!
     
         for i in range(n_dim):
-            c_grid.push_back(grid[i])
+            for j in range(len(grid[i])):
+                c_tmp.push_back(grid[i][j])
+            c_grid.push_back(c_tmp)
+            c_tmp.clear()
+            print(c_tmp.size())
         for i in range(n_tables):
-            c_values.push_back(values[i])
+            for j in range(len(values[i])):
+                c_tmp.push_back(values[i][j])
+            c_values.push_back(c_tmp)
+            c_tmp.clear()
+            print(c_tmp.size())
+            
+        # self.c_RGI = new RegularGridInterpolator(c_grid, c_values)  # do we need "new"?
+        self.c_RGI = RegularGridInterpolator(c_grid, c_values)  # do we need "new"?
+        print("I am alive")
 
-        self.thisptr = new RegularGridInterpolator(c_grid, c_values)
+    # def __dealloc__(self):
+    #     # log_action("Deleting the RegularGridInterpolator instance")
+    #     del self.c_RGI
+    
+    def __call__(self, np.ndarray[np.float64_t, ndim=1] target):
+        print("__call__")
+        cdef int n = target.shape[0]
+        cdef Py_ssize_t i
+        cdef np.ndarray[DTYPE_t, ndim=1] result = np.zeros(n)
+        cdef double [:] result_view = result
+        # https://cython.readthedocs.io/en/latest/src/userguide/wrapping_CPlusPlus.html
+        # https://cython.readthedocs.io/en/latest/src/tutorial/numpy.html
+        # http://docs.cython.org/en/latest/src/userguide/memoryviews.html
+        # c_vec = 
+        # cdef double [:] narr_view = X
+        cdef double [:] target_view = target
+        cdef vector[double] c_target
+        for i in range(n):
+            c_target.push_back(target[i])
+        # c_target[:] = target_view
+        # cdef double [:] c_target_view = target
+        # print(c_target[0])
+        # print(c_target[1])
+        # print("set_new_target")
+        self.c_RGI.set_new_target(c_target)
+        # print("get_values_at_target")
+        cdef vector[double] c_res = self.c_RGI.get_values_at_target(c_target)
+        # cdef vector[double] c_res = self.c_RGI(c_target)
+        # print("cast, typed memory view")
+        cdef double[:] arr = <double [:c_res.size()]> c_res.data()
+        # print("get_values_at_target")
+        # cdef double [:] cres_view = c_res
+        result[:] = arr
+        # result_view = cres_view
+        return result
+    
+    def get_ndims(self):
+        cdef Py_ssize_t dims = self.c_RGI.get_ndims()
+        return dims
+    
+    def set_new_target(self, target):
+        cdef int n = target.shape[0]
+        cdef Py_ssize_t i
+        cdef vector[double] c_target
+        for i in range(n):
+            c_target.push_back(target[i])
 
-    def __dealloc__(self):
-        # log_action("Deleting the RegularGridInterpolator instance")
-        del self.thisptr
+        # cdef double [:] target_view = target
+        # c_target[:] = target_view
+        # cdef double [:] c_target_view = target
+        # print(c_target[0])
+        # print(c_target[1])
+        print("set_new_target")
+        print("c_target", c_target)
+        self.c_RGI.set_new_target(c_target)  # breaks!
+        print("has been set")
+        return
+    
+    def get_current_target(self):
+        # TODO: throw warning: "The current target was requested, but no target has been set."
+        # TODO use typed memory views
+        cdef Py_ssize_t i
+        cdef vector[double] c_target = self.c_RGI.get_current_target()
+        cdef Py_ssize_t n = c_target.size()
+        cdef np.ndarray[DTYPE_t, ndim=1] target = np.zeros(n)
+        for i in range(n):
+            target[i] = c_target[i]
+        return target
+    
+    def get_values_at_target(self):
+        cdef Py_ssize_t i
+        cdef vector[double] c_values = self.c_RGI.get_values_at_target()
+        cdef Py_ssize_t n = c_values.size()
+        cdef np.ndarray[DTYPE_t, ndim=1] values = np.zeros(n)
+        for i in range(n):
+            values[i] = c_values[i]
+        return values
+        
 
-
+  
 np.import_array()
 # DTYPE = np.float64
 # ctypedef np.float64_t DTYPE_t

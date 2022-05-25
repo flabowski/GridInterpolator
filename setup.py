@@ -7,18 +7,12 @@ Created on Fri Apr  8 10:43:51 2022
 check https://cython.readthedocs.io/en/latest/
 Anaconda prompt:
 $ net use U: \\files.ad.ife.no\MatPro_files\Florian\Repositoties
+$ U:
 $ cd ./GridInterpolator
 $ python setup.py build_ext --inplace
-
-$ cd C:/Users/florianma/Anaconda3
-$ python //files.ad.ife.no/MatPro_files/Florian/Repositoties/GridInterpolator/setup.py build_ext --inplace
-generates c:/users/florianma/anaconda3/gram_matrix.cp38-win_amd64.pyd
-and //files.ad.ife.no/MatPro_files/Florian/Repositoties/gram/gram_matrix.c
-
-$ cd C:/Users/florianma/Anaconda3/Scripts
-$ cython -a //files.ad.ife.no/MatPro_files/Florian/Repositoties/gram/gram_matrix.pyx
-generates //files.ad.ife.no/MatPro_files/ \
-    Florian/Repositoties/gram/gram_matrix.html
+generates .pyd .c
+$ cython -a //files.ad.ife.no/MatPro_files/Florian/Repositoties/GridInterpolator/_grid_interpolator.pyx
+generates .html
 """
 # import gmsh
 from setuptools import setup
@@ -47,7 +41,7 @@ class sdist(_sdist):
 
     def run(self):
         # from Cython.Build import cythonize
-        cythonize(sources, language_level="2")
+        cythonize(sources, language_level="2")  # , annotate=True
         _sdist.run(self)
 
 
